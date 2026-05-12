@@ -1,0 +1,142 @@
+# ── Camera ────────────────────────────────────────────────────────────────
+camera:
+  device_id: 0                  # /dev/video0 or CSI index
+  width: 1920
+  height: 1080
+  fps: 30
+  # Intrinsics from calibrate.py output — fill before first flight
+  fx: 0.0
+  fy: 0.0
+  cx: 0.0
+  cy: 0.0
+  distortion_coeffs: [0.0, 0.0, 0.0, 0.0, 0.0]
+  # Extrinsics: camera body frame relative to IMU body frame
+  # Rotation as quaternion w,x,y,z and translation in meters
+  cam_to_imu_q: [1.0, 0.0, 0.0, 0.0]
+  cam_to_imu_t: [0.0, 0.0, 0.0]
+  # Horizontal field of view in degrees
+  fov_deg: 90.0
+
+# ── IMU ───────────────────────────────────────────────────────────────────
+imu:
+  port: "/dev/ttyUSB0"          # serial port or "mavlink" to read from PX4
+  baud: 921600
+  rate_hz: 200
+  # IMU noise model — from datasheet or Allan variance analysis
+  accel_noise_density: 0.003    # m/s^2/sqrt(Hz)
+  gyro_noise_density: 0.0001    # rad/s/sqrt(Hz)
+  accel_random_walk: 0.0001     # m/s^3/sqrt(Hz)
+  gyro_random_walk: 0.000001    # rad/s^2/sqrt(Hz)
+  gravity_ms2: 9.81
+  # Camera-IMU time offset in seconds (positive = camera lags IMU)
+  # Measure with time_sync.py before first flight
+  time_offset_s: 0.0
+
+# ── Tracker ───────────────────────────────────────────────────────────────
+tracker:
+  max_points: 300               # maximum tracked points
+  min_points: 80                # reinitialize if below this
+  fast_threshold: 20            # FAST detector threshold
+  lk_window_size: 21            # Lucas-Kanade window size
+  lk_max_level: 3               # pyramid levels
+  fb_error_threshold: 1.0       # forward-backward error reject threshold px
+  min_point_distance: 20        # minimum pixels between tracked points
+  # track_quality below this triggers forced matcher run
+  quality_threshold: 0.5
+  # flow magnitude above this (pixels) triggers more frequent matching
+  high_motion_threshold: 15.0
+
+# ── Matcher ───────────────────────────────────────────────────────────────
+matcher:
+  # SuperPoint model weights path
+  superpoint_weights: "weights/superpoint_v1.pth"
+  # LightGlue model weights path
+  lightglue_weights: "weights/lightglue_v0.1_disk.pth"
+  # Minimum LightGlue per-match confidence to keep a match
+  lightglue_min_confidence: 0.5
+  # Minimum inliers after RANSAC to accept a fix
+  min_inliers: 12
+  # RANSAC reprojection threshold in pixels
+  ransac_threshold: 4.0
+  # Minimum frames between matcher runs (at 30 fps, 6 = 5 Hz)
+  min_match_interval_frames: 6
+  # Run on GPU
+  use_gpu: true
+
+# ── Fix Quality ───────────────────────────────────────────────────────────
+fix_quality:
+  # Base position measurement noise in meters (1-sigma)
+  # Scaled by confidence and inlier count
+  base_vision_noise_m: 5.0
+  # Inlier count scaling reference (noise halves at this count)
+  inlier_scale: 20
+  # Mahalanobis gate in sigma (reject if innovation > this)
+  mahal_gate: 5.0
+  # Absolute position jump gate in meters
+  # Reject fix if further than this from predicted position
+  max_fix_jump_m: 50.0
+
+# ── Region Map ────────────────────────────────────────────────────────────
+region_map:
+  mosaic_path: "region/satellite.png"
+  metadata_path: "region/metadata.json"
+  # Altitude limits for mosaic scaling
+  min_altitude_m: 5.0
+  max_altitude_m: 200.0
+
+# ── ESKF ──────────────────────────────────────────────────────────────────
+eskf:
+  # Initial state covariance diagonal values
+  init_pos_std_m: 10.0
+  init_vel_std_ms: 1.0
+  init_att_std_rad: 0.1
+  init_accel_bias_std: 0.1
+  init_gyro_bias_std: 0.01
+  # Covariance diagonal clamp to prevent divergence
+  max_pos_std_m: 500.0
+  max_vel_std_ms: 50.0
+  # Bias drift limits
+  max_accel_bias: 0.5
+  max_gyro_bias: 0.05
+  # Maximum time since last fix before warning
+  fix_timeout_s: 10.0
+
+# ── MAVLink ───────────────────────────────────────────────────────────────
+mavlink:
+  # UDP target for PX4 (companion computer to flight controller)
+  host: "127.0.0.1"
+  port: 14550
+  # System and component IDs
+  system_id: 1
+  component_id: 195             # MAV_COMP_ID_VISUAL_INERTIAL_ODOMETRY
+  # Operational mode:
+  #   1 = send raw visual fix as VISION_POSITION_ESTIMATE
+  #   2 = send fused ESKF pose as ATT_POS_MOCAP
+  mode: 1
+  # Pipeline latency in milliseconds — measure with time_sync.py
+  # This value is subtracted from the message timestamp
+  ev_delay_ms: 50
+  # Send rate for Mode 2 in Hz
+  send_rate_hz: 30
+
+# ── Logging ───────────────────────────────────────────────────────────────
+logging:
+  log_dir: "logs"
+  # Log fields per frame: timestamp, eskf_state, fix_accepted,
+  # innovation, track_quality, match_count, inlier_count
+  log_full_state: true
+  # Flush interval in seconds
+  flush_interval_s: 1.0
+
+# ── PX4 EKF2 parameter recommendations ───────────────────────────────────
+# Set these on the PX4 flight controller before first flight.
+# These are not read by this software; they are here as documentation.
+px4_ekf2_params:
+  EKF2_AID_MASK: 24             # external vision position + yaw
+  EKF2_HGT_MODE: 3              # external vision altitude
+  EKF2_EV_DELAY: 50             # match mavlink.ev_delay_ms
+  EKF2_EV_NOISE_MD: 0           # use covariance from message
+  EKF2_EV_POS_X: 0.1
+  EKF2_EV_POS_Y: 0.1
+  EKF2_EV_POS_Z: 0.15
+  EKF2_EV_GATE: 5               # innovation gate in sigma
