@@ -24,7 +24,11 @@ class CameraSource:
         self._dist = dist
         self._undistort_map: tuple | None = None
 
-        self._cap = cv2.VideoCapture(config['device_id'])
+        device = config['device_id']
+        if isinstance(device, str):
+            self._cap = cv2.VideoCapture(device, cv2.CAP_GSTREAMER)
+        else:
+            self._cap = cv2.VideoCapture(device)
         if not self._cap.isOpened():
             raise CameraError(f"Cannot open camera device {config['device_id']}")
 

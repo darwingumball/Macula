@@ -1,3 +1,4 @@
+import argparse
 import csv
 import logging
 import signal
@@ -16,6 +17,7 @@ from shared.fix_quality import FixQuality
 from shared.matcher import Matcher
 from shared.region_map import RegionMap
 from shared.tracker import Tracker
+from tools.display import VPSDisplay
 
 logging.basicConfig(
     level=logging.INFO,
@@ -30,6 +32,14 @@ def _handle_signal(sig, frame) -> None:
     global _SHUTDOWN
     logger.info("Shutdown signal received")
     _SHUTDOWN = True
+
+
+def _parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(description="VPS Inertial positioning system")
+    p.add_argument("--headless", action="store_true", help="Disable display window")
+    p.add_argument("--config", default="config/params.yaml", metavar="PATH",
+                   help="Path to params.yaml (default: config/params.yaml)")
+    return p.parse_args()
 
 
 def load_config(path: str = "config/params.yaml") -> dict:
@@ -56,10 +66,11 @@ def init_logger(log_cfg: dict) -> csv.writer:
 
 
 def main() -> None:
+    args = _parse_args()
     signal.signal(signal.SIGINT, _handle_signal)
     signal.signal(signal.SIGTERM, _handle_signal)
 
-    cfg = load_config()
+    cfg = load_config(args.config)
 
     region_map = RegionMap(cfg['region_map'])
     camera = CameraSource(cfg['camera'])
@@ -74,6 +85,7 @@ def main() -> None:
 
     imu_pre.start()
     bridge.start()
+    display = VPSDisplay(headless=args.headless)
 
     log_writer, log_fh = init_logger(cfg['logging'])
 
@@ -149,6 +161,10 @@ def main() -> None:
             state = eskf.state
             bridge.send(state, last_R, last_raw_fix)
 
+            if display.update(frame, track_result, last_raw_fix, state, fix_accepted):
+                logger.info("Quit requested from display")
+                break
+
             if cfg['logging']['log_full_state']:
                 p = state.position
                 v = state.velocity
@@ -166,6 +182,7 @@ def main() -> None:
                 last_flush = now
 
     finally:
+        display.close()
         camera.release()
         imu_pre.stop()
         bridge.stop()
