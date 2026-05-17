@@ -48,8 +48,8 @@ python3 -c "import torch; assert torch.cuda.is_available(), 'CUDA not found'; \
     '| device:', torch.cuda.get_device_name(0))"
 
 # ── 5. LightGlue (SuperPoint + LightGlue) ────────────────────────────────────
-echo "==> Installing LightGlue..."
-pip install lightglue
+echo "==> Installing LightGlue (from GitHub — not on PyPI)..."
+pip install git+https://github.com/cvg/LightGlue.git
 
 # ── 6. Project requirements ───────────────────────────────────────────────────
 echo "==> Installing project requirements..."

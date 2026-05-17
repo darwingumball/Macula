@@ -5,9 +5,10 @@ scipy>=1.11
 PyYAML>=6.0
 
 # Feature matching
-torch>=2.0
+torch>=2.4           # >=2.4 for Python 3.13 wheels
 kornia>=0.7
-# Alternative: pip install lightglue (standalone package)
+# LightGlue is not on PyPI — install separately:
+# pip install git+https://github.com/cvg/LightGlue.git
 
 # MAVLink
 pymavlink>=2.4.37

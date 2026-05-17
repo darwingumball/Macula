@@ -64,8 +64,8 @@ pip install --no-cache \
 python3 -c "import torch; print('  torch', torch.__version__, '| CUDA:', torch.cuda.is_available())"
 
 # ── 6. LightGlue ─────────────────────────────────────────────────────────────
-echo "==> Installing LightGlue..."
-pip install lightglue
+echo "==> Installing LightGlue (from GitHub — not on PyPI)..."
+pip install git+https://github.com/cvg/LightGlue.git
 
 # ── 7. Project requirements ───────────────────────────────────────────────────
 echo "==> Installing project requirements..."
