@@ -32,12 +32,13 @@ class Tracker:
 
         if self._prev_frame is None or self._prev_points is None or len(self._prev_points) == 0:
             self._prev_frame = gray
-            self._prev_points = self._detect(gray)
+            pts = self._detect(gray)
+            self._prev_points = pts.reshape(-1, 1, 2)
             return TrackResult(
-                points=self._prev_points,
+                points=pts,
                 flow_magnitude=0.0,
-                track_quality=1.0 if len(self._prev_points) >= self._cfg['min_points'] else 0.0,
-                needs_reinit=len(self._prev_points) < self._cfg['min_points'],
+                track_quality=1.0 if len(pts) >= self._cfg['min_points'] else 0.0,
+                needs_reinit=len(pts) < self._cfg['min_points'],
             )
 
         pts_fwd, status_fwd, _ = cv2.calcOpticalFlowPyrLK(
@@ -46,9 +47,10 @@ class Tracker:
 
         if pts_fwd is None or status_fwd is None:
             self._prev_frame = gray
-            self._prev_points = self._detect(gray)
+            pts = self._detect(gray)
+            self._prev_points = pts.reshape(-1, 1, 2)
             return TrackResult(
-                points=self._prev_points,
+                points=pts,
                 flow_magnitude=0.0,
                 track_quality=0.0,
                 needs_reinit=True,
