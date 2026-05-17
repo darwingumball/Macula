@@ -18,10 +18,10 @@ sudo apt-get install -y --no-install-recommends \
     python3-pip python3-venv python3-dev \
     libopencv-dev python3-opencv \
     git wget curl \
-    libhdf5-dev libatlas-base-dev gfortran \
+    libhdf5-dev libopenblas-dev gfortran \
     v4l-utils \
-    libcamera-apps libcamera-dev \
-    python3-libcamera python3-kms++
+    libcamera-apps \
+    python3-libcamera
 
 # ── 2. Serial port permissions (for IMU) ─────────────────────────────────────
 echo "==> Configuring serial port and camera access..."

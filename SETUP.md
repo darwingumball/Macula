@@ -16,7 +16,7 @@ Two supported platforms. Run the matching script, then follow the checklist.
 
 ```bash
 # On device, clone the repo and run the platform script
-git clone <repo-url> && cd vps_inertial
+git clone https://github.com/evansfsu/Macula.git && cd Macula
 
 # Orin Nano
 chmod +x setup_orin.sh && ./setup_orin.sh
