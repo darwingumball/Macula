@@ -50,19 +50,14 @@ python3 -m venv "$VENV"
 source "$VENV/bin/activate"
 pip install --upgrade pip wheel
 
-# libcamera is only available as a system package; symlink it into the venv
-# so picamera2 can import it without --system-site-packages
-echo "==> Linking system libcamera into venv..."
+# picamera2 depends on several system-only packages (libcamera, kms, etc.)
+# that cannot be pip-installed. Add a .pth file so the venv can see them
+# without --system-site-packages (pip packages still take priority).
+echo "==> Linking system Pi packages into venv..."
 PY_VER=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
 VENV_SP="$VENV/lib/python${PY_VER}/site-packages"
-for src in /usr/lib/python3/dist-packages/libcamera /usr/lib/python3/dist-packages/_libcamera*.so; do
-    if [ -e "$src" ]; then
-        ln -sfn "$src" "$VENV_SP/$(basename "$src")"
-        echo "    Linked $(basename "$src")"
-    else
-        echo "    WARN: $src not found — ensure python3-libcamera is installed"
-    fi
-done
+echo "/usr/lib/python3/dist-packages" > "$VENV_SP/system-pi.pth"
+echo "    Added system-pi.pth → /usr/lib/python3/dist-packages"
 
 pip install "numpy>=1.24"
 
