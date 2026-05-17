@@ -166,6 +166,8 @@ matcher:
   ransac_threshold: 4.0
   min_match_interval_frames: 30
   use_gpu: false
+  max_keypoints: 512
+  resize_px: 512
 
 fix_quality:
   base_vision_noise_m: 5.0

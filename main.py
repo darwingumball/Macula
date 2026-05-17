@@ -14,7 +14,7 @@ from estimator.imu_preintegrator import IMUPreintegrator
 from estimator.mavlink_bridge import MAVLinkBridge
 from shared.camera_source import CameraSource
 from shared.fix_quality import FixQuality
-from shared.matcher import Matcher
+from shared.matcher import AsyncMatcher, Matcher
 from shared.region_map import RegionMap
 from shared.tracker import Tracker
 from tools.display import VPSDisplay
@@ -75,8 +75,9 @@ def main() -> None:
     region_map = RegionMap(cfg['region_map'])
     camera = CameraSource(cfg['camera'])
     tracker = Tracker(cfg['tracker'])
-    matcher = Matcher(cfg['matcher'], region_map)
-    matcher.set_fov(cfg['camera']['fov_deg'])
+    _matcher = Matcher(cfg['matcher'], region_map)
+    _matcher.set_fov(cfg['camera']['fov_deg'])
+    matcher = AsyncMatcher(_matcher)
     fix_quality = FixQuality(cfg['fix_quality'])
     imu_pre = IMUPreintegrator(cfg['imu'])
     eskf = ESKF(cfg['eskf'])
@@ -111,21 +112,27 @@ def main() -> None:
             altitude_m = float(-state.position[2]) if state.initialized else 50.0
             attitude_q = state.attitude
 
+            # Submit a new match if interval elapsed and matcher is free
             frames_since_match += 1
-            run_matcher = (
-                frames_since_match >= cfg['matcher']['min_match_interval_frames']
-                or track_result.track_quality < cfg['tracker']['quality_threshold']
-                or track_result.flow_magnitude > cfg['tracker']['high_motion_threshold']
+            should_match = (
+                not matcher.busy and (
+                    frames_since_match >= cfg['matcher']['min_match_interval_frames']
+                    or track_result.track_quality < cfg['tracker']['quality_threshold']
+                    or track_result.flow_magnitude > cfg['tracker']['high_motion_threshold']
+                )
             )
+            if should_match:
+                frames_since_match = 0
+                matcher.submit(frame, altitude_m, attitude_q)
 
+            # Consume finished match result (non-blocking)
             fix_accepted = False
             innovation_m = 0.0
             match_count = 0
             inlier_count = 0
 
-            if run_matcher:
-                frames_since_match = 0
-                match_result = matcher.match(frame, altitude_m, attitude_q)
+            match_result = matcher.pop_result()
+            if match_result is not None:
                 last_raw_fix = match_result
                 match_count = match_result.match_count
                 inlier_count = match_result.inlier_count

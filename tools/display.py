@@ -42,10 +42,12 @@ class VPSDisplay:
         fps = len(self._t) / 2.0
 
         if self._headless:
-            logger.debug(
-                "fps=%.1f tq=%.2f flow=%.1f fix=%s init=%s",
+            logger.info(
+                "fps=%.1f tq=%.2f flow=%.0fpx fix=%s eskf=%s pos=(%.1f,%.1f,%.1f)m",
                 fps, track.track_quality, track.flow_magnitude,
-                fix_accepted, state.initialized,
+                "OK" if fix_accepted else "--",
+                "INIT" if state.initialized else "WAIT",
+                state.position[0], state.position[1], state.position[2],
             )
             return False
 

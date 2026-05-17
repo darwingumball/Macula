@@ -62,6 +62,10 @@ matcher:
   min_match_interval_frames: 6
   # Run on GPU
   use_gpu: true
+  # SuperPoint keypoint budget (fewer = faster; 512 is fine for matching)
+  max_keypoints: 1024
+  # Resize longest edge to this before feature extraction
+  resize_px: 640
 
 # ── Fix Quality ───────────────────────────────────────────────────────────
 fix_quality:

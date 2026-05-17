@@ -1,6 +1,6 @@
 import logging
+import threading
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import cv2
@@ -45,7 +45,8 @@ class Matcher:
         try:
             import torch
             from lightglue import LightGlue, SuperPoint
-            self._extractor = SuperPoint(max_num_keypoints=1024).eval().to(self._device)
+            kp = self._cfg.get('max_keypoints', 512)
+            self._extractor = SuperPoint(max_num_keypoints=kp).eval().to(self._device)
             self._lightglue = LightGlue(features='superpoint').eval().to(self._device)
             logger.debug("SuperPoint and LightGlue loaded on %s", self._device)
         except ImportError as e:
@@ -72,8 +73,9 @@ class Matcher:
             logger.debug("region_map.get_crop failed: %s", e)
             return MatchResult(None, None, 0, 0.0, 0)
 
-        query_gray = self._to_gray_resized(frame)
-        ref_gray = self._to_gray_resized(mosaic_crop)
+        size = self._cfg.get('resize_px', 640)
+        query_gray = self._to_gray_resized(frame, size)
+        ref_gray = self._to_gray_resized(mosaic_crop, size)
 
         try:
             import torch
@@ -164,3 +166,47 @@ class Matcher:
         import torch
         t = torch.from_numpy(gray).float() / 255.0
         return t.unsqueeze(0).unsqueeze(0)
+
+
+class AsyncMatcher:
+    """Wraps Matcher to run match() in a background thread.
+
+    submit() is non-blocking and silently drops requests while a match is
+    already in progress — the main loop keeps running at camera FPS.
+    pop_result() returns and clears the latest finished result, or None.
+    """
+
+    def __init__(self, matcher: Matcher) -> None:
+        self._matcher = matcher
+        self._lock = threading.Lock()
+        self._pending: MatchResult | None = None
+        self._busy = False
+
+    def submit(self, frame: np.ndarray, altitude_m: float, attitude_q: np.ndarray) -> None:
+        with self._lock:
+            if self._busy:
+                return
+            self._busy = True
+        threading.Thread(
+            target=self._run,
+            args=(frame.copy(), altitude_m, attitude_q),
+            daemon=True,
+            name="matcher",
+        ).start()
+
+    def _run(self, frame: np.ndarray, altitude_m: float, attitude_q: np.ndarray) -> None:
+        result = self._matcher.match(frame, altitude_m, attitude_q)
+        with self._lock:
+            self._pending = result
+            self._busy = False
+
+    def pop_result(self) -> MatchResult | None:
+        with self._lock:
+            r = self._pending
+            self._pending = None
+            return r
+
+    @property
+    def busy(self) -> bool:
+        with self._lock:
+            return self._busy
