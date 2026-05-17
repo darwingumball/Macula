@@ -50,20 +50,14 @@ python3 -m venv "$VENV"
 source "$VENV/bin/activate"
 pip install --upgrade pip wheel
 
-# picamera2 depends on several system-only packages (libcamera, kms, etc.)
-# that cannot be pip-installed. Add a .pth file so the venv can see them
-# without --system-site-packages (pip packages still take priority).
-echo "==> Linking system Pi packages into venv..."
-PY_VER=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
-VENV_SP="$VENV/lib/python${PY_VER}/site-packages"
-echo "/usr/lib/python3/dist-packages" > "$VENV_SP/system-pi.pth"
-echo "    Added system-pi.pth → /usr/lib/python3/dist-packages"
+# Install all pip packages first with no system path interference.
+# The system-pi.pth (which exposes libcamera, kms, etc.) is added at the
+# end so pip never mistakes broken system numpy for a valid installation.
 
 pip install "numpy>=1.24"
 
 # ── 5. PyTorch CPU-only ───────────────────────────────────────────────────────
 echo "==> Installing PyTorch (CPU-only for RPi5)..."
-# torch>=2.4 is the first release with official Python 3.13 wheels
 pip install --no-cache \
     --index-url https://download.pytorch.org/whl/cpu \
     "torch>=2.4" torchvision
@@ -86,6 +80,16 @@ pip install \
     "matplotlib>=3.7" \
     "pandas>=2.0" \
     "pytest>=7.4"
+
+# ── 7b. Expose system-only Pi packages (libcamera, kms, etc.) ────────────────
+# Done here — after all pip installs — so pip never sees the broken system
+# numpy during dependency resolution. At runtime, venv site-packages comes
+# first in sys.path so pip-managed packages still win on name collisions.
+echo "==> Linking system Pi packages into venv..."
+PY_VER=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+VENV_SP="$VENV/lib/python${PY_VER}/site-packages"
+echo "/usr/lib/python3/dist-packages" > "$VENV_SP/system-pi.pth"
+echo "    Added system-pi.pth → /usr/lib/python3/dist-packages"
 
 # ── 8. Model weights ──────────────────────────────────────────────────────────
 echo "==> Downloading SuperPoint + LightGlue weights..."
