@@ -304,6 +304,7 @@ For RPi5, add `--config config/params_rpi5.yaml` to `ExecStart`.
 |---|---|---|
 | `CameraError: Cannot open camera` | Wrong device_id | `v4l2-ctl --list-devices`, try 0, 1, 2 |
 | GStreamer pipeline hangs | Bad pipeline string | Test with `gst-launch-1.0` first |
+| numpy sanity check RuntimeError on import | System numpy mixed into venv | Delete `.venv/`, re-run `setup_rpi5.sh` (script now uses isolated venv) |
 | `torch.cuda.is_available() = False` | Wrong PyTorch build | Reinstall from NVIDIA wheel index |
 | SuperPoint ImportError | lightglue not installed | `pip install lightglue` |
 | Serial port permission denied | Not in dialout group | `sudo usermod -aG dialout $USER` + re-login |

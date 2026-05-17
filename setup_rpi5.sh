@@ -45,15 +45,21 @@ echo "    CSI (Pi Cam v3): set device_id to libcamera GStreamer string — see S
 
 # ── 4. Python virtual environment ────────────────────────────────────────────
 echo "==> Creating Python venv at $VENV..."
-python3 -m venv --system-site-packages "$VENV"
+# No --system-site-packages: isolates pip packages from system numpy/opencv
+# which can cause BLAS sanity-check failures on Bookworm.
+python3 -m venv "$VENV"
 source "$VENV/bin/activate"
 pip install --upgrade pip wheel
 
+# Install numpy first so torch's import finds a clean, pip-managed copy
+pip install "numpy>=1.24,<2.0"
+
 # ── 5. PyTorch CPU-only ───────────────────────────────────────────────────────
 echo "==> Installing PyTorch (CPU-only for RPi5)..."
+# torch>=2.4 is the first release with official Python 3.13 wheels
 pip install --no-cache \
     --index-url https://download.pytorch.org/whl/cpu \
-    "torch>=2.1" torchvision
+    "torch>=2.4" torchvision
 
 python3 -c "import torch; print('  torch', torch.__version__, '| CUDA:', torch.cuda.is_available())"
 
@@ -64,7 +70,6 @@ pip install lightglue
 # ── 7. Project requirements ───────────────────────────────────────────────────
 echo "==> Installing project requirements..."
 pip install \
-    "numpy>=1.24" \
     "opencv-python>=4.8" \
     "scipy>=1.11" \
     "PyYAML>=6.0" \
