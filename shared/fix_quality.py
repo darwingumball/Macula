@@ -59,7 +59,7 @@ class FixQuality:
             logger.debug("Fix rejected: jump %.1f m > %.1f m", innovation_mag, self._cfg['max_fix_jump_m'])
             return QualityResult(False, R, innovation_mag, "max_fix_jump")
 
-        H = np.zeros((3, 16))
+        H = np.zeros((3, 15))
         H[0:3, 0:3] = np.eye(3)
         P = eskf_cov
         S = H @ P @ H.T + R

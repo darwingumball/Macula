@@ -50,9 +50,10 @@ def fetch_tile(x: int, y: int, zoom: int, cache_dir: Path) -> np.ndarray | None:
         if img is not None:
             return img
 
-    # Use OpenStreetMap tile server
-    url = f"https://tile.openstreetmap.org/{zoom}/{x}/{y}.png"
-    headers = {"User-Agent": "VPS-Inertial/1.0 mosaic-builder"}
+    # ESRI World Imagery — free satellite tiles, no API key required
+    # Axis order is z/row/col i.e. z/y/x (opposite of OSM)
+    url = f"https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{zoom}/{y}/{x}"
+    headers = {"User-Agent": "VPS-Inertial/1.0 mosaic-builder", "Referer": "https://www.arcgis.com"}
     try:
         req = urllib.request.Request(url, headers=headers)
         with urllib.request.urlopen(req, timeout=10) as resp:

@@ -19,6 +19,7 @@ sudo apt-get install -y --no-install-recommends \
     libopencv-dev python3-opencv \
     git wget curl \
     libhdf5-dev libopenblas-dev gfortran \
+    libcap-dev \
     v4l-utils \
     libcamera-apps \
     python3-libcamera
@@ -45,14 +46,25 @@ echo "    CSI (Pi Cam v3): set device_id to libcamera GStreamer string — see S
 
 # ── 4. Python virtual environment ────────────────────────────────────────────
 echo "==> Creating Python venv at $VENV..."
-# No --system-site-packages: isolates pip packages from system numpy/opencv
-# which can cause BLAS sanity-check failures on Bookworm.
 python3 -m venv "$VENV"
 source "$VENV/bin/activate"
 pip install --upgrade pip wheel
 
-# Install numpy first so torch's import finds a clean, pip-managed copy
-pip install "numpy>=1.24,<2.0"
+# libcamera is only available as a system package; symlink it into the venv
+# so picamera2 can import it without --system-site-packages
+echo "==> Linking system libcamera into venv..."
+PY_VER=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+VENV_SP="$VENV/lib/python${PY_VER}/site-packages"
+for src in /usr/lib/python3/dist-packages/libcamera /usr/lib/python3/dist-packages/_libcamera*.so; do
+    if [ -e "$src" ]; then
+        ln -sfn "$src" "$VENV_SP/$(basename "$src")"
+        echo "    Linked $(basename "$src")"
+    else
+        echo "    WARN: $src not found — ensure python3-libcamera is installed"
+    fi
+done
+
+pip install "numpy>=1.24"
 
 # ── 5. PyTorch CPU-only ───────────────────────────────────────────────────────
 echo "==> Installing PyTorch (CPU-only for RPi5)..."

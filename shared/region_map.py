@@ -72,12 +72,14 @@ class RegionMap:
         if crop.size == 0:
             raise RegionMapError("Crop is empty — position outside mosaic bounds")
 
-        scale = crop_size / max(crop.shape[0], crop.shape[1])
+        crop_h, crop_w = crop.shape[:2]
         crop_resized = cv2.resize(crop, (crop_size, crop_size))
+        sx = crop_w / crop_size
+        sy = crop_h / crop_size
 
         def georef_fn(pixel_x: float, pixel_y: float) -> tuple[float, float]:
-            map_px = x0 + pixel_x / scale
-            map_py = y0 + pixel_y / scale
+            map_px = x0 + pixel_x * sx
+            map_py = y0 + pixel_y * sy
             return self.pixel_to_latlon(map_px, map_py)
 
         return crop_resized, georef_fn

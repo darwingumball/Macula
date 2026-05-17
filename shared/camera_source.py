@@ -63,7 +63,7 @@ class CameraSource:
             from picamera2 import Picamera2
         except ImportError as e:
             raise CameraError(
-                "picamera2 not installed. Run: pip install picamera2"
+                "libcamera not accessible from venv. Re-run setup_rpi5.sh to symlink it in."
             ) from e
         self._picam2 = Picamera2()
         cam_cfg = self._picam2.create_video_configuration(
