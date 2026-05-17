@@ -70,6 +70,7 @@ pip install git+https://github.com/cvg/LightGlue.git
 # ── 7. Project requirements ───────────────────────────────────────────────────
 echo "==> Installing project requirements..."
 pip install \
+    "picamera2" \
     "opencv-python>=4.8" \
     "scipy>=1.11" \
     "PyYAML>=6.0" \
@@ -111,7 +112,7 @@ if [ ! -f "$RPI5_CFG" ]; then
 #   - max_points: 150 (lighter tracker)
 
 camera:
-  device_id: 0
+  device_id: "picamera2"     # OV5647/Pi Camera via libcamera; use 0 for USB camera
   width: 1280
   height: 720
   fps: 30
