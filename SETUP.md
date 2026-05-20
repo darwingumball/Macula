@@ -217,15 +217,36 @@ sudo raspi-config   # Display → VNC → Enable
 
 ## Region Map Preparation (both platforms)
 
-Run once before flight to download satellite mosaic:
+Run once before flight to download the satellite mosaic for your area.
 
+**Default test region — Newhall Community Park, Concord CA**
 ```bash
 python tools/prepare_region.py \
-  --lat-min 37.75 --lat-max 37.80 \
-  --lon-min -122.45 --lon-max -122.40 \
+  --lat-min 37.971 --lat-max 37.978 \
+  --lon-min -122.001 --lon-max -121.993 \
   --zoom 17 \
   --output region/
 ```
+
+**Using a different region**
+
+Pick your bounding box from Google Maps or similar:
+1. Right-click the SW corner → *What's here?* → note lat/lon
+2. Right-click the NE corner → repeat
+3. Pass those four values as `--lat-min`, `--lat-max`, `--lon-min`, `--lon-max`
+
+```bash
+# Example: custom area
+python tools/prepare_region.py \
+  --lat-min <SW_LAT> --lat-max <NE_LAT> \
+  --lon-min <SW_LON> --lon-max <NE_LON> \
+  --zoom 17 \
+  --output region/
+```
+
+- `--zoom 17` gives ~1 m/px resolution — good for altitudes 10–80 m
+- Keep the box under ~2 km × 2 km or mosaic RAM use grows significantly
+- The output path must match `region_map.mosaic_path` and `region_map.metadata_path` in your params yaml (defaults: `region/satellite.png`, `region/metadata.json`)
 
 Check output: `region/satellite.png` (open with any image viewer) and `region/metadata.json`.
 

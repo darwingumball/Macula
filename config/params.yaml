@@ -81,6 +81,9 @@ fix_quality:
   max_fix_jump_m: 50.0
 
 # ── Region Map ────────────────────────────────────────────────────────────
+# Default test region: Newhall Community Park, Concord CA
+#   python tools/prepare_region.py --lat-min 37.971 --lat-max 37.978 \
+#     --lon-min -122.001 --lon-max -121.993 --zoom 17 --output region/
 region_map:
   mosaic_path: "region/satellite.png"
   metadata_path: "region/metadata.json"
