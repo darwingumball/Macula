@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from estimator.eskf import ESKFState
     from shared.matcher import MatchResult
     from shared.tracker import TrackResult
+    from shared.vo_estimator import VOResult
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,7 @@ class VPSDisplay:
         match: Optional["MatchResult"],
         state: "ESKFState",
         fix_accepted: bool,
+        vo_result: Optional["VOResult"] = None,
     ) -> bool:
         """Render frame with overlays. Returns True if quit requested (q/Esc)."""
         now = time.monotonic()
@@ -42,9 +44,12 @@ class VPSDisplay:
         fps = len(self._t) / 2.0
 
         if self._headless:
+            vo_str = (
+                f" vo={vo_result.speed_ms:.1f}m/s" if (vo_result and vo_result.valid) else ""
+            )
             logger.info(
-                "fps=%.1f tq=%.2f flow=%.0fpx fix=%s eskf=%s pos=(%.1f,%.1f,%.1f)m",
-                fps, track.track_quality, track.flow_magnitude,
+                "fps=%.1f tq=%.2f flow=%.0fpx%s fix=%s eskf=%s pos=(%.1f,%.1f,%.1f)m",
+                fps, track.track_quality, track.flow_magnitude, vo_str,
                 "OK" if fix_accepted else "--",
                 "INIT" if state.initialized else "WAIT",
                 state.position[0], state.position[1], state.position[2],
@@ -54,13 +59,22 @@ class VPSDisplay:
         disp = cv2.resize(frame.copy(), (_W, _H))
         sx, sy = _W / frame.shape[1], _H / frame.shape[0]
 
+        # Flow lines from previous to current position
+        for prev, curr in zip(track.flow_prev, track.flow_curr):
+            p1 = (int(prev[0] * sx), int(prev[1] * sy))
+            p2 = (int(curr[0] * sx), int(curr[1] * sy))
+            cv2.line(disp, p1, p2, (0, 200, 255), 1, cv2.LINE_AA)
+        # Dot at each current point
         for pt in track.points:
-            cv2.circle(disp, (int(pt[0] * sx), int(pt[1] * sy)), 3, (0, 255, 0), -1)
+            cv2.circle(disp, (int(pt[0] * sx), int(pt[1] * sy)), 2, (0, 255, 0), -1)
 
         border = (0, 200, 0) if fix_accepted else (0, 0, 200)
         cv2.rectangle(disp, (0, 0), (_W - 1, _H - 1), border, 3)
 
         hud = [f"FPS {fps:.0f}  TQ {track.track_quality:.2f}  Flow {track.flow_magnitude:.0f}px"]
+        if vo_result is not None and vo_result.valid:
+            vn, ve = vo_result.vel_ned[0], vo_result.vel_ned[1]
+            hud.append(f"VO  {vo_result.speed_ms:.1f} m/s  N{vn:+.1f}  E{ve:+.1f}")
         if match is not None:
             hud.append(
                 f"Matches {match.match_count}  Inliers {match.inlier_count}  "

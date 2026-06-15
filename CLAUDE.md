@@ -25,6 +25,7 @@ Full spec: `VPS_INERTIAL_ARCHITECTURE.md`
 shared/
   camera_source.py    CameraSource — frame capture + undistortion
   tracker.py          Tracker — FAST + Lucas-Kanade optical flow
+  vo_estimator.py     VOEstimator — pixel flow → NED velocity (alternative odometry)
   matcher.py          Matcher — SuperPoint + LightGlue + RANSAC + georef
   fix_quality.py      FixQuality — adaptive covariance, Mahalanobis gate
   region_map.py       RegionMap — mosaic load, altitude scaling, crop
@@ -53,14 +54,15 @@ config/params_rpi5.yaml  RPi5 overrides (CPU-only, lower res)
 | Class | Key method | Return |
 |---|---|---|
 | `CameraSource` | `get_frame()` | `(ndarray, int)` frame + timestamp_ns |
-| `Tracker` | `update(frame)` | `TrackResult` |
+| `Tracker` | `update(frame)` | `TrackResult` (includes `flow_curr`, `flow_prev`) |
+| `VOEstimator` | `estimate(flow_curr, flow_prev, alt, q, dt)` | `VOResult` |
 | `Matcher` | `match(frame, alt, q)` | `MatchResult` |
 | `FixQuality` | `evaluate(match, tq, state, cov)` | `QualityResult` |
 | `RegionMap` | `get_crop(alt, q)` | `(crop, georef_fn)` |
 | `IMUPreintegrator` | `get_delta()` | `IMUDelta` |
 | `ESKF` | `predict(delta)`, `update(fix, alt, R)` | — |
 | `MAVLinkBridge` | `send(state, R, raw_fix)` | — |
-| `VPSDisplay` | `update(frame, track, match, state, fix)` | `bool` (quit?) |
+| `VPSDisplay` | `update(frame, track, match, state, fix, vo_result=None)` | `bool` (quit?) |
 
 ---
 
@@ -148,14 +150,14 @@ python tools/replay_eval.py --log logs/flight_001.log --output logs/eval/
 ## Line Budget Status
 
 ```
-shared/          ~530
+shared/          ~590  (added vo_estimator.py ~55 lines)
 estimator/       ~500
-tools/           ~580  (includes display.py ~85 lines)
-tests/           ~340
-main.py          ~200
+tools/           ~600  (display.py +20 lines)
+tests/           ~390  (added test_vo_estimator.py ~50 lines)
+main.py          ~215
 ─────────────────────
-Estimated total  ~2,150
-Remaining        ~850
+Estimated total  ~2,295
+Remaining        ~705
 ```
 
 When a module nears its budget: simplify, don't expand.

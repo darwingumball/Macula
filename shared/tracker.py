@@ -10,6 +10,8 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TrackResult:
     points: np.ndarray       # shape (N, 2), current tracked points
+    flow_curr: np.ndarray    # shape (M, 2), current positions of tracked subset
+    flow_prev: np.ndarray    # shape (M, 2), previous positions aligned with flow_curr
     flow_magnitude: float    # mean optical flow in pixels
     track_quality: float     # 0.0 to 1.0
     needs_reinit: bool       # True if point count below threshold
@@ -30,12 +32,15 @@ class Tracker:
     def update(self, frame: np.ndarray) -> TrackResult:
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) if frame.ndim == 3 else frame
 
+        _empty = np.empty((0, 2), dtype=np.float32)
         if self._prev_frame is None or self._prev_points is None or len(self._prev_points) == 0:
             self._prev_frame = gray
             pts = self._detect(gray)
             self._prev_points = pts.reshape(-1, 1, 2)
             return TrackResult(
                 points=pts,
+                flow_curr=_empty,
+                flow_prev=_empty,
                 flow_magnitude=0.0,
                 track_quality=1.0 if len(pts) >= self._cfg['min_points'] else 0.0,
                 needs_reinit=len(pts) < self._cfg['min_points'],
@@ -51,6 +56,8 @@ class Tracker:
             self._prev_points = pts.reshape(-1, 1, 2)
             return TrackResult(
                 points=pts,
+                flow_curr=_empty,
+                flow_prev=_empty,
                 flow_magnitude=0.0,
                 track_quality=0.0,
                 needs_reinit=True,
@@ -73,6 +80,10 @@ class Tracker:
         flow_vecs = good_pts - prev_pts_good
         flow_magnitude = float(np.mean(np.linalg.norm(flow_vecs, axis=1))) if len(flow_vecs) else 0.0
 
+        # Capture aligned pairs before distance filtering (used for VO and display)
+        flow_curr = good_pts.copy()
+        flow_prev = prev_pts_good.copy()
+
         good_pts = self._filter_by_distance(good_pts, self._cfg['min_point_distance'])
 
         needs_reinit = len(good_pts) < self._cfg['min_points']
@@ -88,6 +99,8 @@ class Tracker:
 
         return TrackResult(
             points=good_pts,
+            flow_curr=flow_curr,
+            flow_prev=flow_prev,
             flow_magnitude=flow_magnitude,
             track_quality=track_quality,
             needs_reinit=needs_reinit,

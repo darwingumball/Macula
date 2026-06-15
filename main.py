@@ -17,6 +17,7 @@ from shared.fix_quality import FixQuality
 from shared.matcher import AsyncMatcher, Matcher
 from shared.region_map import RegionMap
 from shared.tracker import Tracker
+from shared.vo_estimator import VOEstimator
 from tools.display import VPSDisplay
 
 logging.basicConfig(
@@ -75,6 +76,7 @@ def main() -> None:
     region_map = RegionMap(cfg['region_map'])
     camera = CameraSource(cfg['camera'])
     tracker = Tracker(cfg['tracker'])
+    vo = VOEstimator(cfg['camera'])
     _matcher = Matcher(cfg['matcher'], region_map)
     _matcher.set_fov(cfg['camera']['fov_deg'])
     matcher = AsyncMatcher(_matcher)
@@ -94,6 +96,7 @@ def main() -> None:
     last_flush = time.time()
     last_R: np.ndarray | None = None
     last_raw_fix = None
+    prev_ts_ns: int | None = None
 
     logger.info("VPS Inertial main loop starting (mode %d)", cfg['mavlink']['mode'])
 
@@ -101,6 +104,9 @@ def main() -> None:
         while not _SHUTDOWN:
             frame, ts_ns = camera.get_frame()
             track_result = tracker.update(frame)
+
+            dt_s = (ts_ns - prev_ts_ns) * 1e-9 if prev_ts_ns is not None else 0.0
+            prev_ts_ns = ts_ns
 
             imu_delta = imu_pre.get_delta()
             if eskf.state.initialized and imu_delta.dt > 0:
@@ -111,6 +117,11 @@ def main() -> None:
             state = eskf.state
             altitude_m = float(-state.position[2]) if state.initialized else 50.0
             attitude_q = state.attitude
+
+            vo_result = vo.estimate(
+                track_result.flow_curr, track_result.flow_prev,
+                altitude_m, attitude_q, dt_s,
+            )
 
             # Submit a new match if interval elapsed and matcher is free
             frames_since_match += 1
@@ -168,7 +179,7 @@ def main() -> None:
             state = eskf.state
             bridge.send(state, last_R, last_raw_fix)
 
-            if display.update(frame, track_result, last_raw_fix, state, fix_accepted):
+            if display.update(frame, track_result, last_raw_fix, state, fix_accepted, vo_result):
                 logger.info("Quit requested from display")
                 break
 

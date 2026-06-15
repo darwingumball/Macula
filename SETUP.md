@@ -88,12 +88,13 @@ sudo chmod a+rw /dev/ttyUSB0   # temporary, for immediate testing
 source .venv/bin/activate
 python main.py
 # Press q or Esc to quit
+# Overlay: orange flow lines (prev→curr), green tracked points, VO HUD line (N/E m/s)
 ```
 
 **Headless (SSH, no monitor)**
 ```bash
 python main.py --headless
-# Stats logged to stderr, full state to logs/
+# Stats logged to stderr: fps, tq, flow, vo=X.Xm/s (if calibrated), fix status, pos
 ```
 
 **Remote display via X11 forwarding**
@@ -266,6 +267,8 @@ python tools/calibrate.py \
 
 Copy the printed `fx, fy, cx, cy, distortion_coeffs` into your platform's params yaml. Pass threshold: reprojection error < 0.5 px.
 
+> **VO dependency**: `fx` and `fy` are required by the visual odometry estimator. If calibration is skipped or these values are left at 0, `VOEstimator` returns `valid=False` and the VO HUD line will not appear in the display or headless log.
+
 ---
 
 ## Hardware Validation Checklist
@@ -278,7 +281,7 @@ Work through in order. Each step has a binary pass/fail.
 [ ] Step 3  python tools/time_sync.py             — time_offset_s set in yaml
 [ ] Step 4  python tools/prepare_region.py        — mosaic created and correct
 [ ] Step 5  python main.py (stationary on desk)   — VISION_POSITION_ESTIMATE
-            visible in QGroundControl, error < 5 m
+            visible in QGroundControl, error < 5 m; VO HUD line visible in display (requires Step 2)
 [ ] Step 6  Hand-carry over mosaic printout       — position tracks motion
 [ ] Step 7  PX4 EKF2 params set, EV valid flag   — estimator_status.vision_pos_valid
 [ ] Step 8  python tools/replay_eval.py           — ESKF RMS within 20% of EKF2
@@ -332,3 +335,4 @@ For RPi5, add `--config config/params_rpi5.yaml` to `ExecStart`.
 | Fix acceptance rate 0% | Mosaic mismatch | Re-run `prepare_region.py` for correct area |
 | High fix rejection rate | Altitude wrong | Check ESKF altitude estimate vs actual |
 | OpenCV window fails headless | DISPLAY not set | Add `--headless` or set up VNC/X11 |
+| VO HUD line missing / `vo=` absent from headless log | `fx`/`fy` not calibrated | Run Step 2 (`calibrate.py`) and copy `fx`, `fy` into params yaml |
