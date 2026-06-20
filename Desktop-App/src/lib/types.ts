@@ -59,6 +59,7 @@ export interface TileEstimate {
   ny: number;
   estimated_mb: number;
   gsd_m_per_px: number;
+  too_large: boolean;
 }
 
 export interface DownloadProgress {

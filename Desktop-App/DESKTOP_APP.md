@@ -6,11 +6,63 @@ and ground control station (GCS) functionality for PX4/ArduPilot drones.
 
 ---
 
+## Quick Start
+
+### Windows
+
+```powershell
+# 1. Install prerequisites (once, in order)
+winget install Rustlang.Rustup
+winget install Microsoft.VisualStudio.2019.BuildTools   # select "Desktop development with C++"
+winget install Microsoft.WindowsSDK.10.0.26100
+
+# 2. Restart terminal so rustup is on PATH, then set up Rust
+rustup default stable
+rustup target add x86_64-pc-windows-msvc
+
+# 3. Install Node dependencies (once)
+cd Desktop-App
+npm install
+
+# 4. Run — always use dev.bat, never npm run tauri dev directly
+Desktop-App\dev.bat
+```
+
+> **Why `dev.bat`?** It calls `vcvars64.bat` from VS 2019 Build Tools before launching Tauri.
+> Without MSVC in `PATH`/`LIB`/`INCLUDE`, the Rust linker can't find `link.exe` and the build fails.
+
+### macOS
+
+```bash
+# 1. Install Xcode Command Line Tools (provides clang + linker)
+xcode-select --install
+
+# 2. Install Rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source ~/.cargo/env   # or restart terminal
+
+# 3. Install Node.js (if not already installed)
+brew install node     # or download from nodejs.org
+
+# 4. Install Node dependencies (once)
+cd Desktop-App
+npm install
+
+# 5. Run
+npm run tauri dev
+```
+
+No wrapper script needed on macOS — the system linker is available in every terminal.
+
+First build: **2–5 minutes** (compiles 455 Rust crates). Subsequent builds: ~30 seconds.
+
+---
+
 ## Stack
 
 | Layer | Technology |
 |---|---|
-| Desktop shell | Tauri 2 (Rust backend + WebView2 frontend) |
+| Desktop shell | Tauri 2 (Rust backend + WebView2 on Windows / WKWebView on macOS) |
 | Frontend | React 18 + TypeScript + Vite |
 | Styling | Tailwind CSS (custom dark drone/tech theme) |
 | State | Zustand |
@@ -18,7 +70,7 @@ and ground control station (GCS) functionality for PX4/ArduPilot drones.
 | SSH/SCP | ssh2 Rust crate (sync, wrapped in spawn_blocking) |
 | Tile fetch | reqwest + image Rust crates |
 | Config | serde_yaml |
-| Persistence | `%LOCALAPPDATA%\Macula\` — profile.json, devices.json, regions.json |
+| Persistence | Windows: `%LOCALAPPDATA%\Macula\` · macOS: `~/Library/Application Support/Macula/` |
 
 ---
 
@@ -66,6 +118,8 @@ Desktop-App/
 
 ## Running in Development
 
+### Windows
+
 **Always use `dev.bat`** — it activates the VS 2019 MSVC environment before compiling:
 
 ```
@@ -82,13 +136,33 @@ All 455 Rust dependencies are cached after first build — subsequent builds tak
 
 **Do NOT** run `npm run tauri dev` directly in a plain PowerShell session — `link.exe` won't be found.
 
-### Prerequisites (Windows)
+**Prerequisites:**
 
-- **Rust** — installed via `winget install Rustlang.Rustup`
+- **Rust** — `winget install Rustlang.Rustup`
 - **VS 2019 Build Tools** — `winget install Microsoft.VisualStudio.2019.BuildTools`
-  - Workload: "C++ build tools", components: MSVC v142, Windows 10 SDK
+  - Workload: "Desktop development with C++", components: MSVC v142, Windows 10 SDK
 - **Windows SDK 10.0.26100** — `winget install Microsoft.WindowsSDK.10.0.26100`
-- **Node.js** — for npm + Vite
+- **Node.js 18+** — for npm + Vite
+- **WebView2** — pre-installed on Windows 10 (1803+) and Windows 11; no action needed
+
+### macOS
+
+Run directly from any terminal — no wrapper script needed:
+
+```bash
+cd Desktop-App
+npm run tauri dev
+```
+
+Vite starts on `http://localhost:1420`. Rust compiles and launches `Macula.app`.
+
+**Prerequisites:**
+
+- **Xcode Command Line Tools** — `xcode-select --install`
+  - Provides `clang`, `ar`, `libtool` — everything Rust needs to link on macOS
+- **Rust** — `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
+- **Node.js 18+** — `brew install node` or download from nodejs.org
+- **WKWebView** — built into macOS; no installation needed
 
 ---
 
@@ -210,7 +284,10 @@ on mount. Per-file progress bars via `upload-progress` Tauri events.
 
 ## Persistence
 
-All data persisted to `%LOCALAPPDATA%\Macula\`:
+| Platform | Data directory |
+|---|---|
+| Windows | `%LOCALAPPDATA%\Macula\` |
+| macOS | `~/Library/Application Support/Macula/` |
 
 | File | Contents |
 |---|---|
@@ -225,6 +302,35 @@ Loaded on startup in `App.tsx` via parallel `Promise.all([loadProfile, loadDevic
 
 ---
 
+## Production Build
+
+### Windows
+
+```powershell
+Desktop-App\dev.bat   # activates MSVC env
+# then in the same window:
+npm run tauri build
+```
+
+Output: `src-tauri/target/release/bundle/msi/Macula_0.1.0_x64_en-US.msi`
+
+### macOS
+
+```bash
+cd Desktop-App
+npm run tauri build
+```
+
+Output:
+- `src-tauri/target/release/bundle/macos/Macula.app`
+- `src-tauri/target/release/bundle/dmg/Macula_0.1.0_x64.dmg`
+
+> Distribution outside your own machine requires code signing with an Apple Developer account.
+> Dev builds (unsigned) run fine locally — macOS will prompt "allow app from unidentified developer"
+> the first time; right-click → Open to bypass Gatekeeper.
+
+---
+
 ## Architecture Notes
 
 ### Custom frameless window
@@ -233,7 +339,9 @@ minimize/maximize/close using `getCurrentWindow()`. Requires explicit capabiliti
 `core:window:allow-minimize`, `allow-close`, `allow-toggle-maximize`.
 
 ### Profile & API keys
-`profile.json` at `%LOCALAPPDATA%\Macula\profile.json`:
+`profile.json` location (via `dirs::data_local_dir()`):
+- **Windows:** `%LOCALAPPDATA%\Macula\profile.json`
+- **macOS:** `~/Library/Application Support/Macula/profile.json`
 ```json
 {
   "name": "...", "email": "...", "org": "...",
@@ -345,6 +453,8 @@ Rust backend (mavlink crate — not yet added)
 | 2026-06-20 | Dashboard readiness checklist + bug fix. Settings: Mapbox/Bing API key inputs. Upload: auto-populates downloaded regions. Devices: Pi5 remote control panel (Status/Run VPS/Stop VPS/Logs/Service). Maps: rectangle draw rewritten with manual Leaflet mouse events (fixes WebView2 drag bug). |
 | 2026-06-20 | Devices: MAVLink endpoint + autopilot fields added to form. Pi5 Setup Guide tab: UART wiring diagram, one-click SSH commands for UART enable + MAVLink verify + systemd service install, PX4/ArduPilot FC param tables with copy buttons. GCS roadmap documented. |
 | 2026-06-20 | Region persistence: regions.json at %LOCALAPPDATA%\Macula\. Region metadata: GSD, file size, location (Nominatim reverse geocode). Dashboard region cards: location/resolution/size display, inline name editing, delete. Maps: "Import existing folder" button to recover pre-downloaded regions from metadata.json. |
+| 2026-06-20 | Bug fix: Maps page crash on large region selection (whole US etc.) — integer overflow in tile count arithmetic and uncapped ImageBuffer allocation. Added MAX_TILES=5000 guard in satellite.rs with early error return; too_large flag surfaced to UI with warning banner + disabled Download button. |
+| 2026-06-20 | Docs: added macOS setup to DESKTOP_APP.md (Xcode CLT + rustup, no wrapper script needed). Added RPi5_SETUP.md standalone quickstart. Added CLAUDE_SESSIONS.md development history. |
 
 ---
 
@@ -361,6 +471,24 @@ Rust backend (mavlink crate — not yet added)
 - [ ] Log streaming panel (tabbed: App / Pi5 / MAVLink)
 - [ ] Arm/Disarm + mode switching
 - [ ] 3D attitude indicator
+
+---
+
+## Troubleshooting
+
+| Symptom | Platform | Fix |
+|---|---|---|
+| `link.exe not found` | Windows | Use `dev.bat`, not `npm run tauri dev` directly |
+| vcvars error / VS not found | Windows | Verify VS 2019 Build Tools installed (not 2022) with MSVC v142 workload |
+| `kernel32.lib not found` | Windows | `winget install Microsoft.WindowsSDK.10.0.26100` |
+| WebView2 blank window | Windows | WebView2 runtime not installed — update Windows or install from microsoft.com |
+| `xcode-select: error: tool 'clang' requires Xcode` | macOS | Run `xcode-select --install` and accept the license |
+| `dyld: Library not loaded` on app launch | macOS | Re-run `npm run tauri dev` — stale build artifact; rebuild from scratch if it persists |
+| App blocked by Gatekeeper | macOS | Right-click → Open on first launch to bypass "unidentified developer" warning |
+| Map tiles don't load | Both | Check Mapbox/Bing API key in Settings. ESRI is always free with no key. |
+| Region too large warning | Both | Draw a smaller area (max ~18 km × 18 km at zoom 17; recommended < 2 km × 2 km) |
+| SSH test fails immediately | Both | Verify SSH key path is absolute; on Windows use forward slashes or escaped backslashes |
+| Region import fails | Both | Ensure the folder contains `metadata.json` from `download_tiles` or `prepare_region.py` |
 
 ---
 

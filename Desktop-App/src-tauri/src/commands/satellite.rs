@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use tauri::{AppHandle, Emitter};
 
+const MAX_TILES: u64 = 5_000;
+
 #[derive(Serialize, Clone)]
 pub struct DownloadProgress {
     pub current: u32,
@@ -32,6 +34,7 @@ pub struct TileEstimate {
     pub ny: i32,
     pub estimated_mb: f64,
     pub gsd_m_per_px: f64,
+    pub too_large: bool,
 }
 
 #[derive(Deserialize)]
@@ -103,7 +106,10 @@ pub fn estimate_tiles(bbox: BBox, zoom: u32) -> TileEstimate {
     let y_max = y_min_raw.max(y_max_raw);
     let nx = x_max - x_min + 1;
     let ny = y_max - y_min + 1;
-    let tile_count = (nx * ny) as u32;
+    // Use u64 to avoid i32 overflow on large selections (e.g. whole continents).
+    let tile_count_64 = nx as u64 * ny as u64;
+    let too_large = tile_count_64 > MAX_TILES;
+    let tile_count = tile_count_64.min(u32::MAX as u64) as u32;
     let gsd = gsd_at_zoom(zoom, (bbox.lat_min + bbox.lat_max) / 2.0);
     TileEstimate {
         tile_count,
@@ -111,6 +117,7 @@ pub fn estimate_tiles(bbox: BBox, zoom: u32) -> TileEstimate {
         ny,
         estimated_mb: tile_count as f64 * 0.05,
         gsd_m_per_px: gsd,
+        too_large,
     }
 }
 
@@ -177,9 +184,18 @@ async fn inner_download(
     let y_min = y_min_raw.min(y_max_raw);
     let y_max = y_min_raw.max(y_max_raw);
 
-    let nx = (x_max - x_min + 1) as u32;
-    let ny = (y_max - y_min + 1) as u32;
+    let nx = (x_max - x_min + 1) as u64;
+    let ny = (y_max - y_min + 1) as u64;
     let total = nx * ny;
+    if total > MAX_TILES {
+        return Err(anyhow!(
+            "Region too large: {} tiles (max {}). Keep your area under ~18 km × 18 km at zoom 17.",
+            total, MAX_TILES
+        ));
+    }
+    let nx = nx as u32;
+    let ny = ny as u32;
+    let total = total as u32;
     let tile_size: u32 = 256;
 
     let mosaic_w = nx * tile_size;

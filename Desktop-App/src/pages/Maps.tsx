@@ -516,9 +516,14 @@ export function Maps() {
               </div>
               {estimate && (
                 <div className="border-t border-border pt-2 space-y-1">
+                  {estimate.too_large && (
+                    <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-2.5 py-2 text-red-400 text-[10px]">
+                      ⚠ Region too large ({estimate.tile_count.toLocaleString()}+ tiles). Draw a smaller area — keep it under ~18 km × 18 km.
+                    </div>
+                  )}
                   <div className="flex justify-between text-xs">
                     <span className="text-slate-400">Tiles</span>
-                    <span className="text-slate-200 font-medium">
+                    <span className={cn("font-medium", estimate.too_large ? "text-red-400" : "text-slate-200")}>
                       {estimate.tile_count.toLocaleString()} ({estimate.nx}×{estimate.ny})
                     </span>
                   </div>
@@ -598,7 +603,7 @@ export function Maps() {
         <div className="p-5 border-t border-border space-y-2">
           <button
             onClick={handleDownload}
-            disabled={!bbox || !outputDir || downloading || missingKey}
+            disabled={!bbox || !outputDir || downloading || missingKey || !!estimate?.too_large}
             className="btn-primary w-full justify-center"
           >
             {downloading ? (
