@@ -518,7 +518,7 @@ export function Maps() {
                 <div className="border-t border-border pt-2 space-y-1">
                   {estimate.too_large && (
                     <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-2.5 py-2 text-red-400 text-[10px]">
-                      ⚠ Region too large ({estimate.tile_count.toLocaleString()}+ tiles). Draw a smaller area — keep it under ~18 km × 18 km.
+                      ⚠ Region too large. Maximum area is 50 × 50 km (2,500 km²).
                     </div>
                   )}
                   <div className="flex justify-between text-xs">

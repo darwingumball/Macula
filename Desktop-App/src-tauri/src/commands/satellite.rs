@@ -4,7 +4,15 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use tauri::{AppHandle, Emitter};
 
-const MAX_TILES: u64 = 5_000;
+const MAX_AREA_KM2: f64 = 2_500.0; // 50 × 50 km
+const MAX_TILES: u64 = 30_000;    // safety cap for RAM (~50×50 km at zoom 16)
+
+fn bbox_area_km2(bbox: &BBox) -> f64 {
+    let lat_center = ((bbox.lat_min + bbox.lat_max) / 2.0).to_radians();
+    let ns = (bbox.lat_max - bbox.lat_min) * 111.32;
+    let ew = (bbox.lon_max - bbox.lon_min) * 111.32 * lat_center.cos();
+    (ns * ew).abs()
+}
 
 #[derive(Serialize, Clone)]
 pub struct DownloadProgress {
@@ -108,7 +116,7 @@ pub fn estimate_tiles(bbox: BBox, zoom: u32) -> TileEstimate {
     let ny = y_max - y_min + 1;
     // Use u64 to avoid i32 overflow on large selections (e.g. whole continents).
     let tile_count_64 = nx as u64 * ny as u64;
-    let too_large = tile_count_64 > MAX_TILES;
+    let too_large = bbox_area_km2(&bbox) > MAX_AREA_KM2;
     let tile_count = tile_count_64.min(u32::MAX as u64) as u32;
     let gsd = gsd_at_zoom(zoom, (bbox.lat_min + bbox.lat_max) / 2.0);
     TileEstimate {
@@ -187,10 +195,17 @@ async fn inner_download(
     let nx = (x_max - x_min + 1) as u64;
     let ny = (y_max - y_min + 1) as u64;
     let total = nx * ny;
+    let area = bbox_area_km2(&bbox);
+    if area > MAX_AREA_KM2 {
+        return Err(anyhow!(
+            "Region too large: {:.0} km² (max {:.0} km² = 50 × 50 km).",
+            area, MAX_AREA_KM2
+        ));
+    }
     if total > MAX_TILES {
         return Err(anyhow!(
-            "Region too large: {} tiles (max {}). Keep your area under ~18 km × 18 km at zoom 17.",
-            total, MAX_TILES
+            "Too many tiles at zoom {}: {} tiles. Reduce zoom or shrink the area.",
+            zoom, total
         ));
     }
     let nx = nx as u32;
